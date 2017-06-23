@@ -85,7 +85,8 @@ double run_test(int n_fakeswitches, struct fakeswitch * fakeswitches, int mstest
     for( i = 0 ; i < n_fakeswitches; i++)
     {
         count = fakeswitch_get_count(&fakeswitches[i]);
-        printf("%d  ", count);
+        printf("%d", count);
+        printf("/%d  ", fakeswitch_get_send_count(&fakeswitches[i]));
         sum += count;
     }
     passed = 1000 * diff.tv_sec + (double)diff.tv_usec/1000;   

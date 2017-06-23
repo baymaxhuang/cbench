@@ -65,6 +65,7 @@ void fakeswitch_init(struct fakeswitch *fs, int dpid, int sock, int bufsize, int
     fs->mode = mode;
     fs->probe_size = make_packet_in(fs->id, 0, 0, buf, BUFLEN, fs->current_mac_address++);
     fs->count = 0;
+    fs->send_count = 0;
     fs->switch_status = START;
     fs->delay = delay;
     fs->total_mac_addresses = total_mac_addresses;
@@ -172,6 +173,13 @@ int fakeswitch_get_count(struct fakeswitch *fs)
             count -= msglen;
         }
     }
+    return ret;
+}
+
+
+int fakeswitch_get_send_count(struct fakeswitch *fs) {
+    int ret = fs->send_count;
+    fs->send_count = 0;
     return ret;
 }
 
@@ -501,6 +509,7 @@ static void fakeswitch_handle_write(struct fakeswitch *fs)
             msgbuf_push(fs->outbuf, buf, count);
             debug_msg(fs, "send message %d", i);
         }
+        fs->send_count = fs->send_count + send_count;
     } else if( fs->switch_status == WAITING) 
     {
         struct timeval now;

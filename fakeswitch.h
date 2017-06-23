@@ -28,6 +28,8 @@ struct fakeswitch
     enum test_mode mode;                // are we going for latency or throughput?
     int probe_state;                    // if mode=LATENCY, this is a flag: do we have a packet outstanding?
                                         // if mode=THROUGHPUT, this is the number of outstanding probes
+
+    int send_count;                     // number of request's sent
     int count;                          // number of response's received
     int switch_status;                  // are we ready to start sending packet_in's?
     int next_status;                    // if we are waiting, next step to go after delay expires
@@ -80,5 +82,11 @@ void fakeswitch_handle_io(struct fakeswitch *fs, const struct pollfd *pfd);
  * @return      Number of flow_mod responses since last call
  */
 int fakeswitch_get_count(struct fakeswitch *fs);
+
+/**** Get and reset send_count
+ * @param fs    Pointer to initialized fakeswitch
+ * @return      Number of requests which has been sent to
+ */
+int fakeswitch_get_send_count(struct fakeswitch *fs);
 
 #endif
