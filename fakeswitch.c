@@ -516,6 +516,7 @@ static void fakeswitch_handle_write(struct fakeswitch *fs)
         gettimeofday(&now, NULL);
         if (timercmp(&now, &fs->delay_start, > ))
         {
+            fs->delay = 0;
             fakeswitch_change_status_now(fs, fs->next_status);
             debug_msg(fs, " delay is over: switching to state %d", fs->next_status);
         }
