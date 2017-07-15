@@ -52,7 +52,7 @@ static inline uint64_t ntohll(uint64_t n)
     return htonl(1) == 1 ? n : ((uint64_t) ntohl(n) << 32) | ntohl(n >> 32);
 }
 
-void fakeswitch_init(struct fakeswitch *fs, int dpid, int sock, int bufsize, int debug, int delay, enum test_mode mode, int total_mac_addresses, int learn_dstmac)
+void fakeswitch_init(struct fakeswitch *fs, int dpid, int sock, int bufsize, int debug, int delay, enum test_mode mode, int total_mac_addresses, int learn_dstmac, int max_send_count)
 {
     char buf[BUFLEN];
     struct ofp_header ofph;
@@ -64,7 +64,8 @@ void fakeswitch_init(struct fakeswitch *fs, int dpid, int sock, int bufsize, int
     fs->probe_state = 0;
     fs->mode = mode;
     fs->probe_size = make_packet_in(fs->id, 0, 0, buf, BUFLEN, fs->current_mac_address++);
-    fs->count = 0;
+    fs->max_send_count = max_send_count;
+    fs->recv_count = 0;
     fs->send_count = 0;
     fs->switch_status = START;
     fs->delay = delay;
@@ -155,8 +156,8 @@ void fakeswitch_set_pollfd(struct fakeswitch *fs, struct pollfd *pfd)
 
 int fakeswitch_get_count(struct fakeswitch *fs)
 {
-    int ret = fs->count;
-    fs->count = 0;
+    int ret = fs->recv_count;
+    fs->recv_count = 0;
     fs->probe_state = 0;        // reset packet state
     /*int count;
     int msglen;
@@ -335,7 +336,7 @@ static int make_packet_in(int switch_id, int xid, int buffer_id, char * buf, int
 void fakeswitch_change_status_now (struct fakeswitch *fs, int new_status) {
     fs->switch_status = new_status;
     if(new_status == READY_TO_SEND) {
-        fs->count = 0;
+        fs->recv_count = 0;
         fs->probe_state = 0;
     }
         
@@ -391,7 +392,7 @@ void fakeswitch_handle_read(struct fakeswitch *fs)
                 po = (struct ofp_packet_out *) ofph;
                 if ( fs->switch_status == READY_TO_SEND && ! packet_out_is_lldp(po)) { 
                     // assume this is in response to what we sent
-                    fs->count++;        // got response to what we went
+                    fs->recv_count++;        // got response to what we went
                     fs->probe_state--;
                 }
                 break;
@@ -400,7 +401,7 @@ void fakeswitch_handle_read(struct fakeswitch *fs)
                 if(fs->switch_status == READY_TO_SEND && (fm->command == htons(OFPFC_ADD) || 
                         fm->command == htons(OFPFC_MODIFY_STRICT)))
                 {
-                    fs->count++;        // got response to what we went
+                    fs->recv_count++;        // got response to what we went
                     fs->probe_state--;
                 }
                 break;
@@ -416,7 +417,7 @@ void fakeswitch_handle_read(struct fakeswitch *fs)
             case OFPT_SET_CONFIG:
                 // pull msgs out of buffer
                 debug_msg(fs, "parsing set_config");
-		parse_set_config(ofph);
+		        parse_set_config(ofph);
                 break;
             case OFPT_GET_CONFIG_REQUEST:
                 // pull msgs out of buffer
@@ -457,7 +458,7 @@ void fakeswitch_handle_read(struct fakeswitch *fs)
                 barrier.length = htons(sizeof(barrier));
                 barrier.type   = OFPT_BARRIER_REPLY;
                 barrier.xid = ofph->xid;
-                msgbuf_push(fs->outbuf,(char *) &barrier, sizeof(barrier));
+                //msgbuf_push(fs->outbuf,(char *) &barrier, sizeof(barrier));
                 break;
             case OFPT_STATS_REQUEST:
                 stats_req  = (struct ofp_stats_request *) ofph;
@@ -494,13 +495,21 @@ static void fakeswitch_handle_write(struct fakeswitch *fs)
     int send_count = 0 ;
     int throughput_buffer = BUFLEN;
     int i;
+    int buffer_capacity;
     if( fs->switch_status == READY_TO_SEND) 
     {
         if ((fs->mode == MODE_LATENCY)  && ( fs->probe_state == 0 ))      
             send_count = 1;                 // just send one packet
         else if ((fs->mode == MODE_THROUGHPUT) && 
-                (msgbuf_count_buffered(fs->outbuf) < throughput_buffer))  // keep buffer full
-            send_count = (throughput_buffer - msgbuf_count_buffered(fs->outbuf)) / fs->probe_size;
+                (msgbuf_count_buffered(fs->outbuf) < throughput_buffer) &&
+                (fs->max_send_count > fs->send_count))
+        {
+            // keep buffer full
+            buffer_capacity = (throughput_buffer - msgbuf_count_buffered(fs->outbuf)) / fs->probe_size;
+            send_count = fs->max_send_count - fs->send_count;
+            if (buffer_capacity < send_count)
+                send_count = buffer_capacity;
+        }
         for (i = 0; i < send_count; i++)
         {
             // queue up packet

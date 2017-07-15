@@ -29,8 +29,9 @@ struct fakeswitch
     int probe_state;                    // if mode=LATENCY, this is a flag: do we have a packet outstanding?
                                         // if mode=THROUGHPUT, this is the number of outstanding probes
 
-    int send_count;                     // number of request's sent
-    int count;                          // number of response's received
+    int max_send_count;
+    int send_count;                     // number of request sent per test
+    int recv_count;                     // number of response's received
     int switch_status;                  // are we ready to start sending packet_in's?
     int next_status;                    // if we are waiting, next step to go after delay expires
     int probe_size;                     // how big is the probe (for buffer tuning)
@@ -56,7 +57,7 @@ struct fakeswitch
  * @param total_mac_addresses      The total number of unique mac addresses
  *                                 to use for packet ins from this switch
  */
-void fakeswitch_init(struct fakeswitch *fs, int dpid, int sock, int bufsize, int debug, int delay, enum test_mode mode, int total_mac_addresses, int learn_dstmac);
+void fakeswitch_init(struct fakeswitch *fs, int dpid, int sock, int bufsize, int debug, int delay, enum test_mode mode, int total_mac_addresses, int learn_dstmac, int max_send_count);
 
 
 /*** Set the desired flags for poll()

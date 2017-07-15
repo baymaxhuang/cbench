@@ -45,6 +45,7 @@ struct myargs my_options[] = {
     {"connect-group-size",  'I', "number of switches in a connection delay group", MYARGS_INTEGER, {.integer = 1}},
     {"learn-dst-macs",  'L', "send gratuitious ARP replies to learn destination macs before testing", MYARGS_FLAG, {.flag = 1}},
     {"dpid-offset",  'o', "switch DPID offset", MYARGS_INTEGER, {.integer = 1}},
+    {"max-send-count",  'x', "maximum number of requests sent to controller per test", MYARGS_INTEGER, {.integer = MAX_SEND_COUNT}},
     {0, 0, 0, 0}
 };
 
@@ -80,7 +81,7 @@ double run_test(int n_fakeswitches, struct fakeswitch * fakeswitches, int mstest
     }
     tNow = now.tv_sec;
     tmNow = localtime(&tNow);
-    printf("%02d:%02d:%02d.%03d %-3d switches: flows/sec:  ", tmNow->tm_hour, tmNow->tm_min, tmNow->tm_sec, (int)(now.tv_usec/1000), n_fakeswitches);
+    printf("%02d:%02d:%02d.%03d %-3d switches: response/requests:  ", tmNow->tm_hour, tmNow->tm_min, tmNow->tm_sec, (int)(now.tv_usec/1000), n_fakeswitches);
     usleep(100000); // sleep for 100 ms, to let packets queue
     for( i = 0 ; i < n_fakeswitches; i++)
     {
@@ -233,7 +234,20 @@ int count_bits(int n)
     return count;
 }
 /********************************************************************************/
+int raw_controller_hostname_split(char * raw_controller_hostname, char * controller_hostname_list[]) {
+    char * split = ",";
+    char * substr = strtok(raw_controller_hostname, split);
 
+    int controller_numbers = 0;
+
+    while(substr != NULL) {
+        controller_hostname_list[controller_numbers] = substr;
+        controller_numbers++;
+        substr = strtok(NULL, split);
+    }
+    return controller_numbers;
+}
+/********************************************************************************/
 
 
 #define PROG_TITLE "USAGE: cbench [option]  # by Rob Sherwood 2010"
@@ -243,7 +257,10 @@ int main(int argc, char * argv[])
     struct  fakeswitch *fakeswitches;
 
     char *  controller_hostname = myargs_get_default_string(my_options,"controller");
-    int     controller_port      = myargs_get_default_integer(my_options, "port");
+    char *  controller_hostname_list[10];  // all controller_hostname string in array
+    char    controller_hostname_array[100];
+    int     controller_numbers;
+    int     controller_port = myargs_get_default_integer(my_options, "port");
     int     n_fakeswitches= myargs_get_default_integer(my_options, "switches");
     int     total_mac_addresses = myargs_get_default_integer(my_options, "mac-addresses");
     int     mstestlen = myargs_get_default_integer(my_options, "ms-per-test");
@@ -257,6 +274,7 @@ int main(int argc, char * argv[])
     int     connect_group_size = myargs_get_default_integer(my_options, "connect-group-size");
     int     learn_dst_macs = myargs_get_default_flag(my_options, "learn-dst-macs");
     int     dpid_offset = myargs_get_default_integer(my_options, "dpid-offset");
+    int     max_send_count = myargs_get_default_integer(my_options, "max-send-count");
     int     mode = MODE_LATENCY;
     int     i,j;
 
@@ -327,6 +345,9 @@ int main(int argc, char * argv[])
             case 'o':
                 dpid_offset = atoi(optarg);
                 break;
+            case 'x':
+                max_send_count = atoi(optarg);
+                break;
             default: 
                 myargs_usage(my_options, PROG_TITLE, "help message", NULL, 1);
         }
@@ -346,6 +367,7 @@ int main(int argc, char * argv[])
                 "   starting test with %d ms delay after features_reply\n"
                 "   ignoring first %d \"warmup\" and last %d \"cooldown\" loops\n"
                 "   connection delay of %dms per %d switch(es)\n"
+                "   maximum number of requests sent to controller per test is %d\n"
                 "   debugging info is %s\n",
                 mode == MODE_THROUGHPUT? "'throughput'": "'latency'",
                 controller_hostname,
@@ -360,6 +382,7 @@ int main(int argc, char * argv[])
                 delay,
                 warmup,cooldown,
                 connect_delay,connect_group_size,
+                max_send_count,
                 debug == 1 ? "on" : "off");
     /* done parsing args */
     fakeswitches = malloc(n_fakeswitches * sizeof(struct fakeswitch));
@@ -371,6 +394,13 @@ int main(int argc, char * argv[])
     double  v;
     results = malloc(tests_per_loop * sizeof(double));
 
+    strcpy(controller_hostname_array, controller_hostname);
+    controller_numbers = raw_controller_hostname_split(controller_hostname_array, controller_hostname_list);
+    int n_sub_fakeswitches = n_fakeswitches / controller_numbers;  // had better to integer times
+    int temp_sub_fakeswitches = 0;
+    int temp_contoller_number = 1;
+    controller_hostname = controller_hostname_list[0];
+
     for( i = 0; i < n_fakeswitches; i++)
     {
         int sock;
@@ -380,6 +410,19 @@ int main(int argc, char * argv[])
                 fprintf(stderr,"Delaying connection by %dms...", connect_delay*1000);
             usleep(connect_delay*1000);
         }
+
+        if(temp_sub_fakeswitches == n_sub_fakeswitches) {
+            /* if it's not integer times, let remaining switches connect to last controller*/
+            if(temp_contoller_number < controller_numbers - 1) {
+                controller_hostname = controller_hostname_list[temp_contoller_number++];
+                temp_sub_fakeswitches = 0;
+            }
+            else {
+                controller_hostname = controller_hostname_list[temp_contoller_number++];
+            }
+        }
+        temp_sub_fakeswitches++;
+
         sock = make_tcp_connection(controller_hostname, controller_port,3000, mode!=MODE_THROUGHPUT );
         if(sock < 0 )
         {
@@ -389,7 +432,7 @@ int main(int argc, char * argv[])
         if(debug)
             fprintf(stderr,"Initializing switch %d ... ", i+1);
         fflush(stderr);
-        fakeswitch_init(&fakeswitches[i],dpid_offset+i,sock,BUFLEN, debug, delay, mode, total_mac_addresses, learn_dst_macs);
+        fakeswitch_init(&fakeswitches[i],dpid_offset+i,sock,BUFLEN, debug, delay, mode, total_mac_addresses, learn_dst_macs, max_send_count);
         if(debug)
             fprintf(stderr," :: done.\n");
         fflush(stderr);
