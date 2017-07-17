@@ -58,6 +58,7 @@ double run_test(int n_fakeswitches, struct fakeswitch * fakeswitches, int mstest
     double sum = 0;
     double passed;
     int count;
+    int send_count;
 
     int total_wait = mstestlen + delay;
     time_t tNow;
@@ -86,9 +87,12 @@ double run_test(int n_fakeswitches, struct fakeswitch * fakeswitches, int mstest
     for( i = 0 ; i < n_fakeswitches; i++)
     {
         count = fakeswitch_get_count(&fakeswitches[i]);
+        send_count = fakeswitch_get_send_count(&fakeswitches[i]);
         printf("%d", count);
-        printf("/%d  ", fakeswitch_get_send_count(&fakeswitches[i]));
+        printf("/%d  ", send_count);
         sum += count;
+        fakeswitches[i].totoal_recv_count += count;
+        fakeswitches[i].total_send_count += send_count;
     }
     passed = 1000 * diff.tv_sec + (double)diff.tv_usec/1000;   
     passed -= delay;        // don't count the time we intentionally delayed
@@ -463,6 +467,17 @@ int main(int argc, char * argv[])
         }
         sum = sum / (double)(counted_tests);
         double std_dev = sqrt(sum);
+
+        int total_recv_count = 0;
+        int total_send_cunt = 0;
+        for (i = 0; i < n_fakeswitches; i++) {
+            total_recv_count += fakeswitches[i].totoal_recv_count;
+            total_send_cunt += fakeswitches[i].total_send_count;
+        }
+        if (learn_dst_macs) {
+            total_recv_count -= n_fakeswitches;
+        }
+        printf("Total Count: responses/requests =  %d/%d\n", total_recv_count, total_send_cunt);
 
         printf("RESULT: %d switches %d tests "
             "min/max/avg/stdev = %.2lf/%.2lf/%.2lf/%.2lf responses/s\n",

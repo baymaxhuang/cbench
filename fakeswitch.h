@@ -29,9 +29,11 @@ struct fakeswitch
     int probe_state;                    // if mode=LATENCY, this is a flag: do we have a packet outstanding?
                                         // if mode=THROUGHPUT, this is the number of outstanding probes
 
-    int max_send_count;
+    int max_send_count;                 // maximum number of requests sent per test
     int send_count;                     // number of request sent per test
-    int recv_count;                     // number of response's received
+    int recv_count;                     // number of response received per test
+    int total_send_count;               // total number of requests sent to controller
+    int totoal_recv_count;              // total number of responses received from controller
     int switch_status;                  // are we ready to start sending packet_in's?
     int next_status;                    // if we are waiting, next step to go after delay expires
     int probe_size;                     // how big is the probe (for buffer tuning)
