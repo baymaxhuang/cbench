@@ -43,7 +43,7 @@ struct myargs my_options[] = {
     {"delay",  'D', "delay starting testing after features_reply is received (in ms)", MYARGS_INTEGER, {.integer = 0}},
     {"connect-delay",  'i', "delay between groups of switches connecting to the controller (in ms)", MYARGS_INTEGER, {.integer = 0}},
     {"connect-group-size",  'I', "number of switches in a connection delay group", MYARGS_INTEGER, {.integer = 1}},
-    {"learn-dst-macs",  'L', "send gratuitious ARP replies to learn destination macs before testing", MYARGS_FLAG, {.flag = 1}},
+    {"learn-dst-macs",  'L', "send gratuitious ARP replies to learn destination macs before testing", MYARGS_FLAG, {.flag = 0}},
     {"dpid-offset",  'o', "switch DPID offset", MYARGS_INTEGER, {.integer = 1}},
     {"max-send-count",  'x', "maximum number of requests sent to controller per test", MYARGS_INTEGER, {.integer = MAX_SEND_COUNT}},
     {0, 0, 0, 0}
@@ -280,7 +280,7 @@ int main(int argc, char * argv[])
     int     dpid_offset = myargs_get_default_integer(my_options, "dpid-offset");
     int     max_send_count = myargs_get_default_integer(my_options, "max-send-count");
     int     mode = MODE_LATENCY;
-    int     i,j;
+    int     i,j,k;
 
     const struct option * long_opts = myargs_to_long(my_options);
     char * short_opts = myargs_to_short(my_options);
@@ -305,10 +305,7 @@ int main(int argc, char * argv[])
                 myargs_usage(my_options, PROG_TITLE, "help message", NULL, 1);
                 break;
             case 'L':
-                if(optarg)
-                    learn_dst_macs = ( strcasecmp("true", optarg) == 0 || strcasecmp("on", optarg) == 0 || strcasecmp("1", optarg) == 0);
-                else
-                    learn_dst_macs = 1;
+                learn_dst_macs = 1;
                 break;
             case 'l': 
                 tests_per_loop = atoi(optarg);
@@ -470,12 +467,9 @@ int main(int argc, char * argv[])
 
         int total_recv_count = 0;
         int total_send_cunt = 0;
-        for (i = 0; i < n_fakeswitches; i++) {
-            total_recv_count += fakeswitches[i].totoal_recv_count;
-            total_send_cunt += fakeswitches[i].total_send_count;
-        }
-        if (learn_dst_macs) {
-            total_recv_count -= n_fakeswitches;
+        for (k = 0; k < n_fakeswitches; k++) {
+            total_recv_count += fakeswitches[k].totoal_recv_count;
+            total_send_cunt += fakeswitches[k].total_send_count;
         }
         printf("Total Count: responses/requests =  %d/%d\n", total_recv_count, total_send_cunt);
 
