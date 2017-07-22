@@ -262,7 +262,7 @@ int main(int argc, char * argv[])
 
     char *  controller_hostname = myargs_get_default_string(my_options,"controller");
     char *  controller_hostname_list[10];  // all controller_hostname string in array
-    char    controller_hostname_array[100];
+    char    controller_hostname_array[200];
     int     controller_numbers;
     int     controller_port = myargs_get_default_integer(my_options, "port");
     int     n_fakeswitches= myargs_get_default_integer(my_options, "switches");
