@@ -473,6 +473,11 @@ int main(int argc, char * argv[])
         }
         printf("Total Count: responses/requests =  %d/%d\n", total_recv_count, total_send_cunt);
 
+        double total_response_avg = total_recv_count / (double)tests_per_loop;
+        double total_request_avg = total_send_cunt / (double)tests_per_loop;
+        printf("Total Average: responses/requests = %.2lf/%.2lf\n",
+               total_response_avg, total_request_avg);
+
         printf("RESULT: %d switches %d tests "
             "min/max/avg/stdev = %.2lf/%.2lf/%.2lf/%.2lf responses/s\n",
                 i+1,
